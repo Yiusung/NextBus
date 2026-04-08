@@ -47,40 +47,40 @@ async function executeSearch(isSoftRefresh = false) {
 
   uiHideMessage();
 
-  // 1. Identify which routes we need ETA for.
-  // We want: nearest 10 routes + ALL starred routes (regardless of distance)
-  let routesToFetch = [];
-  let stopMap = {}; // stopId -> list of raw route strings
-  
-  appState.nearbyStops.forEach(stop => {
-    // Note: We don't know the exact routes at a stop until we fetch the stop ETA.
-    // So we fetch ETA for the nearest N stops until we've gathered enough unique routes.
-    // For simplicity in this demo, we fetch ETA for the 5 nearest stops + any stops with starred routes.
+  // 1. Identify which stops we need ETA for.
+  const targetStops = [];
+
+  // Add 5 nearest stops (we push the whole object so eta.js knows the operator)
+  appState.nearbyStops.slice(0, 5).forEach(s => {
+    targetStops.push({ id: s.id, op: s.op });
   });
 
-  // Simplified fetch logic for the spec:
-  const targetStopIds = new Set();
-  
-  // Add 5 nearest stops to targets
-  appState.nearbyStops.slice(0, 5).forEach(s => targetStopIds.add(s.id));
-  
   // Add ALL starred stops to targets (even if out of range)
-  Array.from(Stars._set).forEach(key => {
+  // We must fetch them from IndexedDB to get their operator code.
+  for (const key of Array.from(Stars._set)) {
     const stopId = key.split(':')[0];
-    targetStopIds.add(stopId);
-  });
+
+    // Only query DB if it's not already in our target list
+    if (!targetStops.some(s => s.id === stopId)) {
+      const stopRecord = await db.stops.get(stopId);
+      if (stopRecord) {
+        targetStops.push({ id: stopRecord.id, op: stopRecord.op });
+      }
+    }
+  }
 
   // 2. Fetch ETA Data
-  const etaDataMap = await etaFetchBatch(Array.from(targetStopIds));
+  // Now passing objects instead of just string IDs
+  const etaDataMap = await etaFetchBatch(targetStops);
 
   // 3. Process and construct final presentation data
   let allCards = [];
-  
+
   // Process nearby stops
   appState.nearbyStops.forEach(stop => {
     const rawEta = etaDataMap[stop.id] || [];
     const groupedRoutes = etaGroupByRoute(rawEta, stop.op);
-    
+
     groupedRoutes.forEach(r => {
       allCards.push({
         stop: stop,
@@ -95,7 +95,7 @@ async function executeSearch(isSoftRefresh = false) {
   Array.from(Stars._set).forEach(async key => {
     const [stopId, route] = key.split(':');
     const isAlreadyIncluded = allCards.some(c => c.stop.id === stopId && c.routeData.route === route);
-    
+
     if (!isAlreadyIncluded) {
       // Fetch full stop info from DB since it wasn't in the BBox
       const stopRecord = await db.stops.get(stopId);
@@ -103,7 +103,7 @@ async function executeSearch(isSoftRefresh = false) {
         const rawEta = etaDataMap[stopId] || [];
         const groupedRoutes = etaGroupByRoute(rawEta, stopRecord.op);
         const specificRoute = groupedRoutes.find(r => r.route === route);
-        
+
         if (specificRoute) {
           // Calculate distance from current center
           stopRecord.dist = geoHaversine(appState.centerLat, appState.centerLng, stopRecord.lat, stopRecord.lng);
@@ -129,7 +129,7 @@ async function executeSearch(isSoftRefresh = false) {
   // 5. Group by Stop for rendering
   const structured = [];
   let currentGroup = null;
-  
+
   allCards.forEach(card => {
     if (!currentGroup || currentGroup.stop.id !== card.stop.id) {
       currentGroup = {
@@ -153,7 +153,7 @@ async function initApp() {
   // Event Listeners
   document.getElementById('btnTheme').addEventListener('click', uiToggleTheme);
   document.getElementById('btnLang').addEventListener('click', uiToggleLang);
-  
+
   const btnMap = document.getElementById('btnMap');
   const mapContainer = document.getElementById('map-container');
   btnMap.addEventListener('click', () => {
@@ -175,10 +175,10 @@ async function initApp() {
     const pos = await geoGetPosition();
     appState.centerLat = pos.lat;
     appState.centerLng = pos.lng;
-    
+
     mapInit(pos.lat, pos.lng);
     await executeSearch();
-    
+
     // Start Polling
     appState.intervalId = setInterval(() => {
       executeSearch(true);
@@ -186,7 +186,7 @@ async function initApp() {
 
   } catch (err) {
     console.warn("Geolocation failed or denied, using default HK center.");
-    appState.centerLat = 22.3193; 
+    appState.centerLat = 22.3193;
     appState.centerLng = 114.1694;
     mapInit(appState.centerLat, appState.centerLng);
     await executeSearch();

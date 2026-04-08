@@ -1,20 +1,56 @@
-async function etaFetchOne(stopId) {
+/* ═══════ API Fetching ═══════ */
+
+async function fetchKMBETA(stopId) {
+  // We keep KMB routed through the Cloudflare proxy to utilize the edge cache
+  // as implemented in the wrangler/worker setup.
+  const res = await fetch(`/api/eta?stop_id=${stopId}`);
+  if (!res.ok) return [];
+  const json = await res.json();
+  return json.data || [];
+}
+
+async function fetchCTBETA(stopId) {
+  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${stopId}`);
+  if (!res.ok) return [];
+  const json = await res.json();
+  return (json && json.data) ? json.data : [];
+}
+
+async function fetchNLBETA(stopId) {
+  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/NLB/${stopId}`);
+  if (!res.ok) return [];
+  const json = await res.json();
+  return (json && json.data) ? json.data : [];
+}
+
+async function etaFetchOne(stop) {
+  const op = (stop.op || '').toLowerCase();
   try {
-    const res = await fetch(`/api/eta?stop_id=${stopId}`);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data || [];
-  } catch {
+    if (op === 'ctb') return await fetchCTBETA(stop.id);
+    if (op === 'nlb') return await fetchNLBETA(stop.id);
+    return await fetchKMBETA(stop.id); // Default to KMB
+  } catch (err) {
+    console.error(`ETA Fetch Error for ${stop.id} (${op}):`, err);
     return [];
   }
 }
 
-async function etaFetchBatch(stopIds) {
-  const uniqueIds = [...new Set(stopIds)];
-  const promises = uniqueIds.map(id => etaFetchOne(id).then(data => ({ id, data })));
+async function etaFetchBatch(stops) {
+  // Deduplicate by stop ID to avoid redundant network calls,
+  // while preserving the stop object so we know its operator.
+  const uniqueStopsMap = new Map();
+  stops.forEach(s => {
+    if (!uniqueStopsMap.has(s.id)) uniqueStopsMap.set(s.id, s);
+  });
+
+  const uniqueStops = Array.from(uniqueStopsMap.values());
+  const promises = uniqueStops.map(stop =>
+    etaFetchOne(stop).then(data => ({ id: stop.id, data }))
+  );
+
   const results = await Promise.allSettled(promises);
-  
   const map = {};
+
   results.forEach(r => {
     if (r.status === 'fulfilled') {
       map[r.value.id] = r.value.data;
@@ -22,6 +58,8 @@ async function etaFetchBatch(stopIds) {
   });
   return map;
 }
+
+/* ═══════ Data Processing ═══════ */
 
 function etaClass(minutes) {
   if (minutes === null || minutes === undefined) return 'na';
@@ -32,12 +70,15 @@ function etaClass(minutes) {
 
 function etaGroupByRoute(etaDataArray, stopOp) {
   const routes = {};
-  
-  // Filter out past ETAs and data not matching the stop's primary operator
+  const targetOp = (stopOp || '').toLowerCase();
+
+  // Filter out invalid ETA data
   const validData = etaDataArray.filter(eta => {
     if (eta.eta == null) return false;
-    // Only show ETA for the specific operator of this physical stop
-    return (eta.co || '').toLowerCase() === (stopOp || '').toLowerCase();
+
+    // Fallback: if the batch API omits 'co' for some NLB routes, default to stopOp
+    const dataOp = (eta.co || targetOp).toLowerCase();
+    return dataOp === targetOp;
   });
 
   validData.forEach(eta => {
@@ -46,20 +87,18 @@ function etaGroupByRoute(etaDataArray, stopOp) {
       routes[route] = {
         route: route,
         dest: { tc: eta.dest_tc, en: eta.dest_en },
-        co: eta.co,
+        co: eta.co || stopOp,
         times: []
       };
     }
-    
-    // Calculate minutes from now
+
     const etaTime = new Date(eta.eta).getTime();
     const now = Date.now();
     const diffMins = Math.max(0, Math.floor((etaTime - now) / 60000));
-    
+
     routes[route].times.push(diffMins);
   });
 
-  // Sort times and limit to 3 chips
   Object.values(routes).forEach(r => {
     r.times.sort((a, b) => a - b);
     r.times = r.times.slice(0, 3);
