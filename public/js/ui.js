@@ -67,7 +67,7 @@ function uiBuildStopSeparator(stopNameTc, stopNameEn, dist) {
   const lang = localStorage.getItem('hkbus_lang') || 'tc';
   const primaryName = lang === 'en' ? stopNameEn : stopNameTc;
   const secondaryName = lang === 'en' ? stopNameTc : stopNameEn;
-  
+
   div.innerHTML = `
     <span class="stop-sep-name">
       ${uiEsc(primaryName)}
@@ -80,16 +80,16 @@ function uiBuildStopSeparator(stopNameTc, stopNameEn, dist) {
 function uiBuildCard(stop, routeData, isTooFar) {
   const op = (routeData.co || stop.op || '').toLowerCase();
   const isStarred = Stars.has(stop.id, routeData.route);
-  
+
   const div = document.createElement('div');
   div.className = `eta-card ${op} ${isTooFar ? 'too-far' : ''} ${isStarred ? 'starred' : ''}`;
-  
+
   // Star button handler
   div.addEventListener('dblclick', () => Stars.toggle(stop.id, routeData.route));
-  
+
   const lang = localStorage.getItem('hkbus_lang') || 'tc';
   const dest = lang === 'en' ? (routeData.dest?.en || '') : (routeData.dest?.tc || '');
-  
+
   // Badge name formatting
   let badgeName = "未知";
   if (op === 'kmb') badgeName = "九巴";
@@ -98,13 +98,22 @@ function uiBuildCard(stop, routeData, isTooFar) {
 
   // Build ETA Chips
   let chipsHtml = '';
+
   if (routeData.times && routeData.times.length > 0) {
-    chipsHtml = routeData.times.map(mins => {
-      const cls = etaClass(mins);
-      return `<span class="eta-chip ${cls}">${mins}${t('minutes')}</span>`;
-    }).join(' <span style="color:var(--card-border)">·</span> ');
+      // 1. If we have live minutes, show the color-coded chips
+      chipsHtml = routeData.times.map(mins => {
+          const cls = etaClass(mins); // 'hot', 'warm', or 'cool'
+          return `<span class="eta-chip ${cls}">${mins}${t('minutes')}</span>`;
+      }).join(' · ');
+
+  } else if (routeData.rmk && routeData.rmk.trim() !== '') {
+      // 2. If no minutes, but we have a cleaned remark (like "Scheduled"), show it
+      // We use 'na' class for styling but allow the text to show
+      chipsHtml = `<span class="eta-chip na" style="font-size:0.7rem; white-space:nowrap;">${uiEsc(routeData.rmk)}</span>`;
+
   } else {
-    chipsHtml = `<span class="eta-chip na">${t('noETA')}</span>`;
+      // 3. Fallback if absolutely no data is available
+      chipsHtml = `<span class="eta-chip na">${t('noETA')}</span>`;
   }
 
   div.innerHTML = `
@@ -134,7 +143,7 @@ function uiRenderCards(structuredData) {
   structuredData.forEach(group => {
     // Add separator
     container.appendChild(uiBuildStopSeparator(group.stop.tc, group.stop.en, group.stop.dist));
-    
+
     // Add cards
     group.routes.forEach(r => {
       container.appendChild(uiBuildCard(group.stop, r, group.isTooFar));

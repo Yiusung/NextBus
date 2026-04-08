@@ -1,8 +1,6 @@
 /* ═══════ API Fetching ═══════ */
 
 async function fetchKMBETA(stopId) {
-  // We keep KMB routed through the Cloudflare proxy to utilize the edge cache
-  // as implemented in the wrangler/worker setup.
   const res = await fetch(`/api/eta?stop_id=${stopId}`);
   if (!res.ok) return [];
   const json = await res.json();
@@ -10,34 +8,79 @@ async function fetchKMBETA(stopId) {
 }
 
 async function fetchCTBETA(stopId) {
-  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${stopId}`);
+  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${stopId}?lang=zh-hant`);
   if (!res.ok) return [];
   const json = await res.json();
   return (json && json.data) ? json.data : [];
 }
 
 async function fetchNLBETA(stopId) {
-  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/NLB/${stopId}`);
+  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/NLB/${stopId}?lang=zh-hant`);
   if (!res.ok) return [];
   const json = await res.json();
   return (json && json.data) ? json.data : [];
 }
 
+/**
+ * Standardizes raw API data and removes the "static" NLB legal disclaimer.
+ */
+function standardizeData(rawArray, stopOp) {
+  const op = stopOp.toLowerCase();
+
+  // The exact phrases to block entirely
+  const BANNED_PHRASES = [
+    "actual arrival time is subject",
+    "實際到站時間受實時交通情況影響",
+    "for reference only",
+    "僅供參考"
+  ];
+
+  return rawArray.map(e => {
+    let rmk = (e.rmk_tc || e.rmk_en || e.rmk || '').trim();
+
+    // Check if it's a "junk" remark
+    const isJunk = BANNED_PHRASES.some(phrase =>
+      rmk.toLowerCase().includes(phrase.toLowerCase())
+    );
+
+    if (isJunk) rmk = '';
+
+    // Truncate useful remarks to 20 chars
+    const cleanedRmk = rmk.length > 20
+      ? rmk.substring(0, 20) + '...'
+      : rmk;
+
+    return {
+      route: e.route || '—',
+      dest_tc: e.dest_tc || e.destination_tc || e.dest || "未知終點",
+      dest_en: e.dest_en || e.destination_en || e.dest || "Unknown Destination",
+      eta: e.eta || e.eta_timestamp || null,
+      seq: e.eta_seq || e.seq || 0,
+      rmk: cleanedRmk,
+      co: e.co || op
+    };
+  });
+}
+
 async function etaFetchOne(stop) {
   const op = (stop.op || '').toLowerCase();
+  let raw = [];
   try {
-    if (op === 'ctb') return await fetchCTBETA(stop.id);
-    if (op === 'nlb') return await fetchNLBETA(stop.id);
-    return await fetchKMBETA(stop.id); // Default to KMB
+    if (op === 'ctb') raw = await fetchCTBETA(stop.id);
+    else if (op === 'nlb') raw = await fetchNLBETA(stop.id);
+    else raw = await fetchKMBETA(stop.id);
+
+    return standardizeData(raw, op);
   } catch (err) {
-    console.error(`ETA Fetch Error for ${stop.id} (${op}):`, err);
+    console.error(`Fetch Error: ${stop.id} (${op})`, err);
     return [];
   }
 }
 
+/**
+ * Orchestrates multiple stop requests while avoiding redundant network calls.
+ */
 async function etaFetchBatch(stops) {
-  // Deduplicate by stop ID to avoid redundant network calls,
-  // while preserving the stop object so we know its operator.
   const uniqueStopsMap = new Map();
   stops.forEach(s => {
     if (!uniqueStopsMap.has(s.id)) uniqueStopsMap.set(s.id, s);
@@ -59,7 +102,7 @@ async function etaFetchBatch(stops) {
   return map;
 }
 
-/* ═══════ Data Processing ═══════ */
+/* ═══════ Data Processing for UI ═══════ */
 
 function etaClass(minutes) {
   if (minutes === null || minutes === undefined) return 'na';
@@ -68,45 +111,34 @@ function etaClass(minutes) {
   return 'cool';
 }
 
-function etaGroupByRoute(etaDataArray, stopOp) {
-    const routes = {};
-    const targetOp = (stopOp || '').toLowerCase();
+function etaGroupByRoute(standardizedArray, stopOp) {
+  const routes = {};
+  const targetOp = stopOp.toLowerCase();
 
-    const validData = etaDataArray.filter(eta => {
-        if (eta.eta == null && eta.rm_tc == null) return false;
-        const dataOp = (eta.co || targetOp).toLowerCase();
-        return dataOp === targetOp;
-    });
+  // Filter for routes belonging to the specific operator at this physical stop
+  const filtered = standardizedArray.filter(eta => eta.co.toLowerCase() === targetOp);
 
-    validData.forEach(eta => {
-        const route = eta.route;
-        if (!routes[route]) {
-            // SMART MAPPING for destinations
-            // CTB/NLB Batch API sometimes uses different keys or requires fallbacks
-            const destTc = eta.dest_tc || eta.dest_zh || eta.destination_tc || "未知終點";
-            const destEn = eta.dest_en || eta.destination_en || "Unknown Destination";
+  filtered.forEach(eta => {
+    if (!routes[eta.route]) {
+      routes[eta.route] = {
+        route: eta.route,
+        dest: { tc: eta.dest_tc, en: eta.dest_en },
+        co: eta.co,
+        rmk: eta.rmk,
+        times: []
+      };
+    }
 
-            routes[route] = {
-                route: route,
-                dest: { tc: destTc, en: destEn },
-                co: eta.co || stopOp,
-                times: []
-            };
-        }
+    if (eta.eta) {
+      const diffMins = Math.max(0, Math.floor((new Date(eta.eta).getTime() - Date.now()) / 60000));
+      routes[eta.route].times.push(diffMins);
+    }
+  });
 
-        // Arrival Time Calculation
-        if (eta.eta) {
-            const etaTime = new Date(eta.eta).getTime();
-            const now = Date.now();
-            const diffMins = Math.max(0, Math.floor((etaTime - now) / 60000));
-            routes[route].times.push(diffMins);
-        }
-    });
+  Object.values(routes).forEach(r => {
+    r.times.sort((a, b) => a - b);
+    r.times = r.times.slice(0, 3);
+  });
 
-    Object.values(routes).forEach(r => {
-        r.times.sort((a, b) => a - b);
-        r.times = r.times.slice(0, 3);
-    });
-
-    return Object.values(routes);
+  return Object.values(routes);
 }
