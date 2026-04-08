@@ -69,40 +69,44 @@ function etaClass(minutes) {
 }
 
 function etaGroupByRoute(etaDataArray, stopOp) {
-  const routes = {};
-  const targetOp = (stopOp || '').toLowerCase();
+    const routes = {};
+    const targetOp = (stopOp || '').toLowerCase();
 
-  // Filter out invalid ETA data
-  const validData = etaDataArray.filter(eta => {
-    if (eta.eta == null) return false;
+    const validData = etaDataArray.filter(eta => {
+        if (eta.eta == null && eta.rm_tc == null) return false;
+        const dataOp = (eta.co || targetOp).toLowerCase();
+        return dataOp === targetOp;
+    });
 
-    // Fallback: if the batch API omits 'co' for some NLB routes, default to stopOp
-    const dataOp = (eta.co || targetOp).toLowerCase();
-    return dataOp === targetOp;
-  });
+    validData.forEach(eta => {
+        const route = eta.route;
+        if (!routes[route]) {
+            // SMART MAPPING for destinations
+            // CTB/NLB Batch API sometimes uses different keys or requires fallbacks
+            const destTc = eta.dest_tc || eta.dest_zh || eta.destination_tc || "未知終點";
+            const destEn = eta.dest_en || eta.destination_en || "Unknown Destination";
 
-  validData.forEach(eta => {
-    const route = eta.route;
-    if (!routes[route]) {
-      routes[route] = {
-        route: route,
-        dest: { tc: eta.dest_tc, en: eta.dest_en },
-        co: eta.co || stopOp,
-        times: []
-      };
-    }
+            routes[route] = {
+                route: route,
+                dest: { tc: destTc, en: destEn },
+                co: eta.co || stopOp,
+                times: []
+            };
+        }
 
-    const etaTime = new Date(eta.eta).getTime();
-    const now = Date.now();
-    const diffMins = Math.max(0, Math.floor((etaTime - now) / 60000));
+        // Arrival Time Calculation
+        if (eta.eta) {
+            const etaTime = new Date(eta.eta).getTime();
+            const now = Date.now();
+            const diffMins = Math.max(0, Math.floor((etaTime - now) / 60000));
+            routes[route].times.push(diffMins);
+        }
+    });
 
-    routes[route].times.push(diffMins);
-  });
+    Object.values(routes).forEach(r => {
+        r.times.sort((a, b) => a - b);
+        r.times = r.times.slice(0, 3);
+    });
 
-  Object.values(routes).forEach(r => {
-    r.times.sort((a, b) => a - b);
-    r.times = r.times.slice(0, 3);
-  });
-
-  return Object.values(routes);
+    return Object.values(routes);
 }
