@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>HK BUS ETA</title>
-  
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
+
   <style>
     :root {
       /* Light Theme: HK Street Signage */
@@ -17,14 +17,14 @@
       --text: #1a1610;
       --text-sec: #5a5347;
       --text-muted: #8c8478;
-      
+
       --kmb: #cc2233;
       --kmb-bg: #fdf0f0;
       --ctb: #d4880a;
       --ctb-bg: #fdf6e8;
       --nlb: #1a6b3c;
       --nlb-bg: #eef8f2;
-      
+
       --radius: 6px;
       --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
@@ -38,7 +38,7 @@
       --text: #e8e4f0;
       --text-sec: #8a849a;
       --text-muted: #504c60;
-      
+
       --kmb: #ff2d78;
       --kmb-bg: rgba(255, 45, 120, 0.1);
       --ctb: #ff8c2a;
@@ -143,7 +143,7 @@
     .eta-card.too-far:not(.starred) {
       opacity: 0.55;
     }
-    
+
     /* Operator specific styles */
     .eta-card.kmb { border-left: 4px solid var(--kmb); }
     .eta-card.ctb { border-left: 4px solid var(--ctb); }
@@ -170,7 +170,7 @@
     .kmb .route-num { color: var(--kmb); }
     .ctb .route-num { color: var(--ctb); }
     .nlb .route-num { color: var(--nlb); }
-    
+
     [data-theme="dark"] .kmb .route-num { text-shadow: 0 0 8px var(--kmb); }
     [data-theme="dark"] .ctb .route-num { text-shadow: 0 0 8px var(--ctb); }
     [data-theme="dark"] .nlb .route-num { text-shadow: 0 0 8px var(--nlb); }
@@ -210,9 +210,9 @@
     .kmb .eta-chip.hot, .kmb .eta-chip.warm { color: var(--kmb); }
     .ctb .eta-chip.hot, .ctb .eta-chip.warm { color: var(--ctb); }
     .nlb .eta-chip.hot, .nlb .eta-chip.warm { color: var(--nlb); }
-    
+
     [data-theme="dark"] .eta-chip.hot { text-shadow: 0 0 8px currentColor; }
-    
+
     .eta-chip.cool { color: var(--text-muted); font-weight: 400; }
     .eta-chip.na { color: var(--text-muted); font-style: italic; font-size: 0.9rem; }
 
@@ -255,6 +255,34 @@
       z-index: 2000;
     }
     #toast.show { opacity: 1; }
+
+    .data-disclaimer {
+        text-align: center;
+        padding: 30px 0 50px 0; /* Space for mobile bottom bars */
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+
+    /* Light Theme: Official Notice Style */
+    [data-theme="light"] .data-disclaimer p {
+        color: var(--text-muted);
+        display: inline-block;
+        padding: 4px 12px;
+        border: 1px solid var(--card-border);
+        background: var(--surface);
+        text-transform: uppercase;
+        font-weight: 500;
+    }
+
+    /* Dark Theme: Muted Neon Style */
+    [data-theme="dark"] .data-disclaimer p {
+        color: var(--text-sec);
+        border: none;
+        background: transparent;
+        opacity: 0.6;
+        /* Subtle glow to match the 1990s neon theme */
+        text-shadow: 0 0 5px rgba(138, 132, 154, 0.3);
+    }
   </style>
 </head>
 <body>
@@ -269,19 +297,22 @@
   </div>
 
   <div id="map-container"></div>
-  
+
   <div id="eta-list">
     <div id="status-message" style="text-align:center; padding: 20px; color: var(--text-muted);" data-i18n="loadingData">
       正在載入資料...
     </div>
     <div id="cards-container"></div>
+    <footer class="data-disclaimer">
+        <p data-i18n="disclaimerText"></p>
+    </footer>
   </div>
 
   <div id="toast"></div>
 
   <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
+
   <script src="/js/config.js"></script>
   <script src="/js/stars.js"></script>
   <script src="/js/db.js"></script>

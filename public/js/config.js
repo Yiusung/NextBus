@@ -30,7 +30,8 @@ const I18N = {
     posError:      '定位失敗',
     minutes:       '分',
     meters:        'm',
-    km:            'km'
+    km:            'km',
+    disclaimerText: "資料由 DATA.GOV.HK 提供"
   },
   en: {
     appTitle:      'HK BUS ETA',
@@ -50,7 +51,8 @@ const I18N = {
     posError:      'Location error',
     minutes:       'MIN',
     meters:        'm',
-    km:            'km'
+    km:            'km',
+    disclaimerText: "Data provided by DATA.GOV.HK"
   }
 };
 
