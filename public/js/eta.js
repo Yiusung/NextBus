@@ -7,19 +7,28 @@ async function fetchKMBETA(stopId) {
   return json.data || [];
 }
 
+// Add a helper to map your app's 'tc'/'en' to the API's expected format
+function getApiLang() {
+  const lang = localStorage.getItem('hkbus_lang') || 'tc';
+  return lang === 'en' ? 'en' : 'zh-hant';
+}
+
 async function fetchCTBETA(stopId) {
-  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${stopId}?lang=zh-hant`);
+  const lang = getApiLang();
+  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${stopId}?lang=${lang}`);
   if (!res.ok) return [];
   const json = await res.json();
   return (json && json.data) ? json.data : [];
 }
 
 async function fetchNLBETA(stopId) {
-  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/NLB/${stopId}?lang=zh-hant`);
+  const lang = getApiLang();
+  const res = await fetch(`https://rt.data.gov.hk/v1/transport/batch/stop-eta/NLB/${stopId}?lang=${lang}`);
   if (!res.ok) return [];
   const json = await res.json();
   return (json && json.data) ? json.data : [];
 }
+
 
 /**
  * Standardizes raw API data and removes the "static" NLB legal disclaimer.
