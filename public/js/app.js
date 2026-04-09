@@ -3,11 +3,14 @@ let appState = {
   centerLng: null,
   radius: CONFIG.DEFAULT_RADIUS,
   nearbyStops: [],
-  intervalId: null
+  intervalId: null,
+  isMapMoving: false
 };
 
 // Global callback for UI/Map interactions
 window.AppSetCenter = async function(lat, lng, isFromMapMove = false) {
+  if (appState.isMapMoving) return;
+  
   appState.centerLat = lat;
   appState.centerLng = lng;
   // If user moved map, adjust radius roughly based on zoom
@@ -25,6 +28,9 @@ window.AppRefresh = async function() {
 };
 
 async function executeSearch(isSoftRefresh = false) {
+  //If map is moving, skip this update cycle
+  if (appState.isMapMoving) return;
+
   if (!appState.centerLat || !appState.centerLng) return;
 
   if (!isSoftRefresh) {
@@ -157,6 +163,7 @@ async function initApp() {
   const btnMap = document.getElementById('btnMap');
   const mapContainer = document.getElementById('map-container');
   btnMap.addEventListener('click', () => {
+    appState.isMapMoving = true; //LOCK ON
     //1. Toggle the class(use 'collapsed' instead of 'hidden')
     const isCollapsed = mapContainer.classList.toggle('collapsed');
 
@@ -165,6 +172,7 @@ async function initApp() {
         if(typeof mapInvalidateSize === 'function') {
             mapInvalidateSize({ animate: false });
         }
+        appState.isMapMoving = false; //LOCK OFF
     }, 350); //350ms so 0.3s CSS transition complete
   });
 

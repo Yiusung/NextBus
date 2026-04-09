@@ -99,19 +99,23 @@
     #map-container {
       height: 320px;
       width: 100%;
-      display: block;
       opacity: 1;
       border-bottom: 1px solid var(--card-border);
-      transition: height 0.3s ease-out, opacity 0.2s ease-out;
+      margin-bottom: 15px;
+
+      transition: height 0.3s ease-out, opacity 0.2s ease-out, margin 0.3s ease-out;
+
       overflow: hidden;
+      display: block;
+      will-change: height, opacity;
       background-color: var(--surface);
     }
     /* Renamed from .hidden to .collapsed to avoid conflicts with standard 'hidden' utility classes */
     #map-container.collapsed {
-      height: 0;
+      height: 0 !important;
       opacity: 0;
       border-bottom: none;
-      margin-bottom: 0;
+      margin-bottom: 0 !important;
     }
     [data-theme="dark"] .leaflet-tile {
       filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);

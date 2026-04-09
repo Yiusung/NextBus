@@ -1,6 +1,7 @@
 let map = null;
 let markers = [];
 let userMarker = null;
+let moveTimeout; // Global timer for debouncing
 
 function mapInit(lat, lng) {
   if (map) return;
@@ -31,10 +32,16 @@ function mapInit(lat, lng) {
 
   // Event listener for map movement
   map.on('moveend', () => {
-    const center = map.getCenter();
-    // Prevent triggering if app.js is programmatically setting center
-    if (typeof AppSetCenter === 'function' && !map._isProgrammaticMove) {
-      AppSetCenter(center.lat, center.lng, true); 
+    //1. clear the timer every time the map moves
+    clearTimeout(moveTimeout);
+    //2. only trigger the search if it's not a programmatic move
+    //and the map isn't mid-expansion animation
+    if (typeof AppSetCenter === 'function' && !map._isProgrammaticMove && !isMapMoving) {
+        //3. set a 500ms delay. If the user moves again, this is canceled.
+        moveTimeout = setTimeout(() => {
+            const center = map.getCenter();
+            AppSetCenter(center.lat, center.lng, true);
+        }, 500);
     }
     map._isProgrammaticMove = false;
   });
@@ -49,7 +56,7 @@ function mapRefreshStops(stops) {
   markers = [];
 
   const theme = document.documentElement.getAttribute('data-theme') || 'light';
-  
+
   // Theme colors
   const colors = {
     light: { kmb: '#cc2233', ctb: '#d4880a', nlb: '#1a6b3c' },
@@ -72,7 +79,7 @@ function mapRefreshStops(stops) {
     const lang = localStorage.getItem('hkbus_lang') || 'tc';
     const name = lang === 'en' ? stop.en : stop.tc;
     marker.bindTooltip(name, { direction: 'top' });
-    
+
     marker.addTo(map);
     markers.push(marker);
   });
