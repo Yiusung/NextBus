@@ -158,7 +158,7 @@ async function initApp() {
   const mapContainer = document.getElementById('map-container');
   btnMap.addEventListener('click', () => {
     //1. Toggle the class(use 'collapsed' instead of 'hidden')
-    const isCollapsed = mapContainer.classList.toggle('ccollapsed');
+    const isCollapsed = mapContainer.classList.toggle('collapsed');
 
     //2. Clear active transitions and wait
     setTimeout(() => {
