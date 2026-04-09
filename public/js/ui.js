@@ -91,10 +91,10 @@ function uiBuildCard(stop, routeData, isTooFar) {
   const dest = lang === 'en' ? (routeData.dest?.en || '') : (routeData.dest?.tc || '');
 
   // Badge name formatting
-  let badgeName = "未知";
-  if (op === 'kmb') badgeName = "九巴";
-  if (op === 'ctb') badgeName = "城巴";
-  if (op === 'nlb') badgeName = "嶼巴";
+  let badgeName = "Unknown";
+  if (op === 'kmb') badgeName = "KMB";/*九巴*/
+  if (op === 'ctb') badgeName = "CTB";/*城巴*/
+  if (op === 'nlb') badgeName = "NLB";/*嶼巴*/
 
   // Build ETA Chips
   let chipsHtml = '';
@@ -123,7 +123,7 @@ function uiBuildCard(stop, routeData, isTooFar) {
     <div class="card-header">
       <div class="route-group">
         <span class="route-num">${uiEsc(routeData.route)}</span>
-        <span class="badge">${badgeName}</span>
+        <span class="op-badge">${uiEsc(badgeName)}</span>
       </div>
       <div class="destination">${uiEsc(dest)}</div>
     </div>

@@ -157,11 +157,14 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      width: 100%;
+      overflow: hidden;
     }
     .route-group {
       display: flex;
       align-items: center;
-      gap: 10px;
+      flex-shrink: 0;
+      /*gap: 10px;*/
     }
     .route-num {
       font-size: 1.5rem;
@@ -175,20 +178,37 @@
     [data-theme="dark"] .ctb .route-num { text-shadow: 0 0 8px var(--ctb); }
     [data-theme="dark"] .nlb .route-num { text-shadow: 0 0 8px var(--nlb); }
 
-    .badge {
-      font-size: 0.75rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: bold;
+    .op-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 18px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      border-radius: var(--radius);
+      margin-left: 8px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-transform: uppercase;
     }
-    .kmb .badge { background: var(--kmb-bg); color: var(--kmb); border: 1px solid var(--kmb); }
-    .ctb .badge { background: var(--ctb-bg); color: var(--ctb); border: 1px solid var(--ctb); }
-    .nlb .badge { background: var(--nlb-bg); color: var(--nlb); border: 1px solid var(--nlb); }
+    .kmb .op-badge { background: var(--kmb-bg); color: var(--kmb); border: 1px solid var(--kmb); }
+    .ctb .op-badge { background: var(--ctb-bg); color: var(--ctb); border: 1px solid var(--ctb); }
+    .nlb .op-badge { background: var(--nlb-bg); color: var(--nlb); border: 1px solid var(--nlb); }
 
     .destination {
       font-size: 1.05rem;
       font-weight: 500;
       color: var(--text);
+      flex-grow: 1;
+      text-align: right;
+      margin-left: 10px;
+
+      /*These three lines prevent 2-row jump*/
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .eta-times {
