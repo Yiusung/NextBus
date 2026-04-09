@@ -97,15 +97,20 @@
 
     /* Map Area */
     #map-container {
-      height: 180px;
+      max-height: 240px;
       width: 100%;
+      opacity: 1;
       border-bottom: 1px solid var(--card-border);
-      transition: height 0.3s;
-    }
-    #map-container.hidden {
-      height: 0;
-      border-bottom: none;
+      transition: max-height 0.3s ease, margin 0.3s ease;
       overflow: hidden;
+      background-color: var(--surface);
+    }
+    /* Renamed from .hidden to .collapsed to avoid conflicts with standard 'hidden' utility classes */
+    #map-container.collapsed {
+      max-height: 0;
+      opacity: 0;
+      border-bottom: none;
+      margin-bottom: 0;
     }
     [data-theme="dark"] .leaflet-tile {
       filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);

@@ -157,8 +157,15 @@ async function initApp() {
   const btnMap = document.getElementById('btnMap');
   const mapContainer = document.getElementById('map-container');
   btnMap.addEventListener('click', () => {
-    mapContainer.classList.toggle('hidden');
-    mapInvalidateSize();
+    //1. Toggle the class(use 'collapsed' instead of 'hidden')
+    const isCollapsed = mapContainer.classList.toggle('ccollapsed');
+
+    //2. Clear active transitions and wait
+    setTimeout(() => {
+        if(typeof mapInvalidateSize === 'function') {
+            mapInvalidateSize();
+        }
+    }, 310); //310ms so 0.3s CSS transition complete
   });
 
   uiShowMessage('loadingData');
