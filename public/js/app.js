@@ -163,9 +163,9 @@ async function initApp() {
     //2. Clear active transitions and wait
     setTimeout(() => {
         if(typeof mapInvalidateSize === 'function') {
-            mapInvalidateSize();
+            mapInvalidateSize({ animate: false });
         }
-    }, 310); //310ms so 0.3s CSS transition complete
+    }, 350); //350ms so 0.3s CSS transition complete
   });
 
   uiShowMessage('loadingData');
