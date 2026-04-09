@@ -97,17 +97,18 @@
 
     /* Map Area */
     #map-container {
-      max-height: 240px;
+      height: 360px;
       width: 100%;
+      display: block;
       opacity: 1;
       border-bottom: 1px solid var(--card-border);
-      transition: max-height 0.3s ease, margin 0.3s ease;
+      transition: height 0.3s ease, opacity 0.3s ease;
       overflow: hidden;
       background-color: var(--surface);
     }
     /* Renamed from .hidden to .collapsed to avoid conflicts with standard 'hidden' utility classes */
     #map-container.collapsed {
-      max-height: 0;
+      height: 0;
       opacity: 0;
       border-bottom: none;
       margin-bottom: 0;
