@@ -38,6 +38,7 @@ function mapInit(lat, lng) {
     }
     map._isProgrammaticMove = false;
   });
+  setTimeout(() => map.invalidateSize(), 200);
 }
 
 function mapRefreshStops(stops) {
