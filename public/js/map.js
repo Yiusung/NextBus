@@ -36,36 +36,29 @@ function mapInit(lat, lng) {
   // Event listener for map movement
   map.on('moveend', () => {
     //1. clear the timer every time the map moves
-    console.log("DEBUG: MoveEnd Fired"); // Should see this every time you stop
     clearTimeout(moveTimeout);
 
     if (!window.appState) {
-        console.error("DEBUG: window.appState is missing!");
         return;
     }
 
-    console.log("DEBUG: Status - Programmatic:", map._isProgrammaticMove, "IsMovingLock:", window.appState.isMapMoving);
     //2. only trigger the search if it's not a programmatic move
     //and the map isn't mid-expansion animation
     if (typeof window.AppSetCenter === 'function' && !map._isProgrammaticMove && !window.appState.isMapMoving) {
         //3. set a 500ms delay. If the user moves again, this is canceled.
-        console.log("DEBUG: Conditions met, setting timeout...");
         moveTimeout = setTimeout(() => {
             const center = map.getCenter();
 
             //Check that location actually changed.
             if (center.lat === window.appState.centerLat &&
                 center.lng === window.appState.centerLng) {
-                console.log("DEBUG: Location unchanged. Skipping redundant search.");
                 return;
             }
 
-            console.log("DEBUG: Calling AppSetCenter with:", center.lat, center.lng);
             AppSetCenter(center.lat, center.lng, true);
         }, 500);
-    } else {
-        console.warn("DEBUG: Conditions NOT met. AppSetCenter skipped.");
     }
+    
     map._isProgrammaticMove = false;
   });
   setTimeout(() => map.invalidateSize(), 200);
