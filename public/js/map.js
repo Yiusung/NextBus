@@ -52,6 +52,14 @@ function mapInit(lat, lng) {
         console.log("DEBUG: Conditions met, setting timeout...");
         moveTimeout = setTimeout(() => {
             const center = map.getCenter();
+
+            //Check that location actually changed.
+            if (center.lat === window.appState.centerLat &&
+                center.lng === window.appState.centerLng) {
+                console.log("DEBUG: Location unchanged. Skipping redundant search.");
+                return;
+            }
+
             console.log("DEBUG: Calling AppSetCenter with:", center.lat, center.lng);
             AppSetCenter(center.lat, center.lng, true);
         }, 500);

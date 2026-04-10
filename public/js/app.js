@@ -163,6 +163,11 @@ async function initApp() {
   const btnMap = document.getElementById('btnMap');
   const mapContainer = document.getElementById('map-container');
   btnMap.addEventListener('click', () => {
+
+    if (window.map) {
+        window.map._isProgrammaticMove = true;
+    }
+
     appState.isMapMoving = true; //LOCK ON
     //1. Toggle the class(use 'collapsed' instead of 'hidden')
     const isCollapsed = mapContainer.classList.toggle('collapsed');
@@ -172,7 +177,13 @@ async function initApp() {
         if(typeof mapInvalidateSize === 'function') {
             mapInvalidateSize({ animate: false });
         }
-        appState.isMapMoving = false; //LOCK OFF
+        setTimeout(() => {
+            appState.isMapMoving = false;
+            if (window.map) {
+                window.map._isProgrammaticMove = false;
+            }
+        }, 50);
+        
     }, 350); //350ms so 0.3s CSS transition complete
   });
 
