@@ -1,4 +1,4 @@
-let appState = {
+window.appState = {
   centerLat: null,
   centerLng: null,
   radius: CONFIG.DEFAULT_RADIUS,

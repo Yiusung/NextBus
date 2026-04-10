@@ -36,7 +36,7 @@ function mapInit(lat, lng) {
     clearTimeout(moveTimeout);
     //2. only trigger the search if it's not a programmatic move
     //and the map isn't mid-expansion animation
-    if (typeof AppSetCenter === 'function' && !map._isProgrammaticMove && !isMapMoving) {
+    if (typeof AppSetCenter === 'function' && !map._isProgrammaticMove && window.appState && !window.appState.isMapMoving === false) {
         //3. set a 500ms delay. If the user moves again, this is canceled.
         moveTimeout = setTimeout(() => {
             const center = map.getCenter();
