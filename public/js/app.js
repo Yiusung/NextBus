@@ -9,16 +9,16 @@ window.appState = {
 
 // Global callback for UI/Map interactions
 window.AppSetCenter = async function(lat, lng, isFromMapMove = false) {
-  if (appState.isMapMoving) return;
-  
-  appState.centerLat = lat;
-  appState.centerLng = lng;
+  if (window.appState.isMapMoving) return;
+
+  window.appState.centerLat = lat;
+  window.appState.centerLng = lng;
   // If user moved map, adjust radius roughly based on zoom
-  if (isFromMapMove && map) {
-    const z = map.getZoom();
-    if (z >= 18) appState.radius = 50;
-    else if (z <= 16) appState.radius = 200;
-    else appState.radius = 150;
+  if (isFromMapMove && window.map) {
+    const z = window.map.getZoom();
+    if (z >= 18) window.appState.radius = 50;
+    else if (z <= 16) window.appState.radius = 200;
+    else window.appState.radius = 150;
   }
   await executeSearch();
 };
