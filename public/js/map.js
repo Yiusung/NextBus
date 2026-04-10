@@ -14,6 +14,9 @@ function mapInit(lat, lng) {
     attributionControl: false
   }).setView([lat, lng], 17);
 
+  map._isProgrammaticMove = false; // Initialize the safety lock
+  window.map = map;               // Export map so app.js can see window.map.getZoom()
+
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

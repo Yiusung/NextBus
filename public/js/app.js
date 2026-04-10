@@ -16,9 +16,9 @@ window.AppSetCenter = async function(lat, lng, isFromMapMove = false) {
   // If user moved map, adjust radius roughly based on zoom
   if (isFromMapMove && window.map) {
     const z = window.map.getZoom();
-    if (z >= 18) window.appState.radius = 100;
-    else if (z <= 16) window.appState.radius = 200;
-    else window.appState.radius = 150;
+    if (z >= 18) window.appState.radius = 150;
+    else if (z <= 16) window.appState.radius = 300;
+    else window.appState.radius = 200;
   }
   await executeSearch();
 };
