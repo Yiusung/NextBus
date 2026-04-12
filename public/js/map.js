@@ -73,19 +73,23 @@ function mapInit(lat, lng) {
 
   // --- BUTTON LOGIC ---
   const btnRecenter = document.getElementById('btn-recenter');
-  if (btnRecenter) {
+    if (btnRecenter) {
       btnRecenter.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (!map) return;
 
-        // 1. Get current star keys (stopId:route) and sort alphabetically
+        // 1. Safety check: Ensure db and map exist
+        if (!window.db || !window.db.stops) {
+            console.error("Database 'db' is not yet ready.");
+            return;
+        }
+
         const starKeys = [...Stars._set].sort();
         let targetLatLng = null;
 
-        // 2. Cycle logic
+        // 2. Increment cycle
         currentTargetIndex++;
         if (currentTargetIndex > starKeys.length) {
-          currentTargetIndex = 0; // Reset to GPS
+          currentTargetIndex = 0;
         }
 
         if (currentTargetIndex === 0) {
@@ -94,31 +98,36 @@ function mapInit(lat, lng) {
             btnRecenter.innerHTML = '🎯';
           }
         } else {
-          const [stopId, route] = starKeys[currentTargetIndex - 1].split(':');
+          const currentKey = starKeys[currentTargetIndex - 1];
+          const [stopId, route] = currentKey.split(':');
 
-          // Lookup coordinates from your DB or global data
-          // Using window.db assuming that's where your indexedDB helper lives
-          const stopInfo = await window.db.stops.get(stopId);
+          try {
+            // 3. LOOKUP: Note the use of window.db
+            const stopInfo = await window.db.stops.get(stopId);
 
-          if (stopInfo) {
-            targetLatLng = { lat: stopInfo.lat, lng: stopInfo.lng };
-            btnRecenter.innerHTML = '⭐';
-          } else {
-            // If data missing, skip to GPS
-            currentTargetIndex = 0;
-            targetLatLng = userMarker ? userMarker.getLatLng() : null;
-            btnRecenter.innerHTML = '🎯';
+            if (stopInfo && stopInfo.lat && stopInfo.lng) {
+              targetLatLng = { lat: stopInfo.lat, lng: stopInfo.lng };
+              btnRecenter.innerHTML = '⭐';
+            } else {
+              console.warn(`Stop ${stopId} data missing in DB.`);
+              currentTargetIndex = 0; // Reset to GPS on failure
+              if (userMarker) targetLatLng = userMarker.getLatLng();
+            }
+          } catch (err) {
+            console.error("Database jump failed:", err);
           }
         }
 
-        // 3. Flight execution
-        if (targetLatLng) {
+        // 4. Trigger the Move
+        if (targetLatLng && map) {
           map._isProgrammaticMove = true;
           map.flyTo(targetLatLng, 17, { duration: 0.8 });
 
           map.once('moveend', () => {
             map._isProgrammaticMove = false;
-            window.AppSetCenter(targetLatLng.lat, targetLatLng.lng, true);
+            if (typeof window.AppSetCenter === 'function') {
+              window.AppSetCenter(targetLatLng.lat, targetLatLng.lng, true);
+            }
             updateSearchCircle();
           });
         }

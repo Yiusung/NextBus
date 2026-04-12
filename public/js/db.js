@@ -6,6 +6,7 @@ db.version(1).stores({
   meta:  'key',
 });
 
+window.db = db; // Force global availability
 async function dbCheckFreshness() {
   const count = await db.stops.count();
   if (count === 0) return false;
@@ -21,10 +22,10 @@ async function dbSyncStops() {
   try {
     const res = await fetch(CONFIG.STOPS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    
+
     const json = await res.json();
     const schema = json.schema;
-    
+
     // Reconstruct objects from positional array
     const stops = json.data.map(row => {
       const obj = {};
@@ -42,7 +43,7 @@ async function dbSyncStops() {
         generated_at: json.generated_at
       });
     });
-    
+
     return true;
   } catch (err) {
     console.error("Sync failed:", err);
