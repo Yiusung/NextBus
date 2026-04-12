@@ -105,11 +105,44 @@
 
       transition: height 0.3s ease-out, opacity 0.2s ease-out, margin 0.3s ease-out;
 
+      position: relative;
       overflow: hidden;
       display: block;
       will-change: height, opacity;
       background-color: var(--surface);
     }
+
+    /* 1. Base button style */
+    .map-overlay-btn {
+        position: absolute;
+        bottom: 15px;
+        right: 60px;
+        z-index: 1000;
+        width: 44px;
+        height: 44px;
+        background-color: var(--surface);
+        color: var(--text-main);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        transition: background-color 0.2s, transform 0.1s; /* Added transform transition */
+    }
+
+    /* 2. Visual feedback for mouse users (desktop) */
+    .map-overlay-btn:hover {
+        background-color: var(--card-bg);
+    }
+
+    /* 3. Visual feedback for tap/click (mobile & desktop) */
+    .map-overlay-btn:active {
+        transform: scale(0.95);
+    }
+
     /* Renamed from .hidden to .collapsed to avoid conflicts with standard 'hidden' utility classes */
     #map-container.collapsed {
       height: 0 !important;
@@ -326,7 +359,11 @@
     </div>
   </div>
 
-  <div id="map-container"></div>
+  <div id="map-container">
+      <button id="btn-recenter" class="map-overlay-btn" title="My location">
+        🎯
+      </button>
+  </div>
 
   <div id="eta-list">
     <div id="status-message" style="text-align:center; padding: 20px; color: var(--text-muted);" data-i18n="loadingData">

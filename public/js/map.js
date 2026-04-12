@@ -1,6 +1,7 @@
 let map = null;
 let markers = [];
 let userMarker = null;
+let searchCircle = null;
 let moveTimeout; // Global timer for debouncing
 
 function mapInit(lat, lng) {
@@ -33,6 +34,7 @@ function mapInit(lat, lng) {
     weight: 2
   }).addTo(map);
 
+  map.on('move', updateSearchCircle);
   // Event listener for map movement
   map.on('moveend', () => {
     //1. clear the timer every time the map moves
@@ -58,10 +60,59 @@ function mapInit(lat, lng) {
             AppSetCenter(center.lat, center.lng, true);
         }, 500);
     }
-    
+
+    updateSearchCircle(); // Ensure circle snaps to final position
+
     map._isProgrammaticMove = false;
   });
+
+  // [EXACT PLACEMENT FOR MOVE LISTENER UPDATE]
+  map.on('move', updateSearchCircle); // Update circle position while dragging
+  map.on('zoomend', updateSearchCircle); // Update circle size if user zooms
+
+  // --- BUTTON LOGIC ---
+  const btnRecenter = document.getElementById('btn-recenter');
+  if (btnRecenter) {
+    btnRecenter.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (userMarker && map) {
+        const userLatLng = userMarker.getLatLng();
+        map._isProgrammaticMove = true;
+        map.flyTo(userLatLng, 17, { duration: 0.8 });
+        map.once('moveend', () => {
+          map._isProgrammaticMove = false;
+          window.AppSetCenter(userLatLng.lat, userLatLng.lng, true);
+          updateSearchCircle();
+        });
+      }
+    });
+  }
+
+  // --- INITIALIZE SEARCH CIRCLE HERE ---
+  updateSearchCircle();
+
   setTimeout(() => map.invalidateSize(), 200);
+}
+
+function updateSearchCircle() {
+  if (!map) return;
+  const center = map.getCenter();
+  const radius = window.appState.radius || 150;
+
+  if (!searchCircle) {
+    searchCircle = L.circle(center, {
+      radius: radius,
+      color: '#4285f4',
+      fillColor: '#4285f4',
+      fillOpacity: 0.1,
+      weight: 1,
+      dashArray: '5, 5',
+      interactive: false
+    }).addTo(map);
+  } else {
+    searchCircle.setLatLng(center);
+    searchCircle.setRadius(radius);
+  }
 }
 
 function mapRefreshStops(stops) {
