@@ -32,6 +32,7 @@ const Stars = {
     if (this._set.has(k)) {
       this._set.delete(k);
       this._save();
+      if (typeof currentTargetIndex !== 'undefined') currentTargetIndex = 0;
       if (typeof AppRefresh === 'function') AppRefresh();
       return { changed: true, starred: false, limitReached: false };
     }

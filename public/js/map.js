@@ -3,6 +3,7 @@ let markers = [];
 let userMarker = null;
 let searchCircle = null;
 let moveTimeout; // Global timer for debouncing
+let currentTargetIndex = 0;
 
 function mapInit(lat, lng) {
   if (map) return;
@@ -73,20 +74,56 @@ function mapInit(lat, lng) {
   // --- BUTTON LOGIC ---
   const btnRecenter = document.getElementById('btn-recenter');
   if (btnRecenter) {
-    btnRecenter.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (userMarker && map) {
-        const userLatLng = userMarker.getLatLng();
-        map._isProgrammaticMove = true;
-        map.flyTo(userLatLng, 17, { duration: 0.8 });
-        map.once('moveend', () => {
-          map._isProgrammaticMove = false;
-          window.AppSetCenter(userLatLng.lat, userLatLng.lng, true);
-          updateSearchCircle();
-        });
-      }
-    });
-  }
+      btnRecenter.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!map) return;
+
+        // 1. Get current star keys (stopId:route) and sort alphabetically
+        const starKeys = [...Stars._set].sort();
+        let targetLatLng = null;
+
+        // 2. Cycle logic
+        currentTargetIndex++;
+        if (currentTargetIndex > starKeys.length) {
+          currentTargetIndex = 0; // Reset to GPS
+        }
+
+        if (currentTargetIndex === 0) {
+          if (userMarker) {
+            targetLatLng = userMarker.getLatLng();
+            btnRecenter.innerHTML = '🎯';
+          }
+        } else {
+          const [stopId, route] = starKeys[currentTargetIndex - 1].split(':');
+
+          // Lookup coordinates from your DB or global data
+          // Using window.db assuming that's where your indexedDB helper lives
+          const stopInfo = await window.db.stops.get(stopId);
+
+          if (stopInfo) {
+            targetLatLng = { lat: stopInfo.lat, lng: stopInfo.lng };
+            btnRecenter.innerHTML = '⭐';
+          } else {
+            // If data missing, skip to GPS
+            currentTargetIndex = 0;
+            targetLatLng = userMarker ? userMarker.getLatLng() : null;
+            btnRecenter.innerHTML = '🎯';
+          }
+        }
+
+        // 3. Flight execution
+        if (targetLatLng) {
+          map._isProgrammaticMove = true;
+          map.flyTo(targetLatLng, 17, { duration: 0.8 });
+
+          map.once('moveend', () => {
+            map._isProgrammaticMove = false;
+            window.AppSetCenter(targetLatLng.lat, targetLatLng.lng, true);
+            updateSearchCircle();
+          });
+        }
+      });
+    }
 
   // --- INITIALIZE SEARCH CIRCLE HERE ---
   updateSearchCircle();
