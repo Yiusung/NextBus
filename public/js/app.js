@@ -133,7 +133,7 @@ async function executeSearch(isSoftRefresh = false) {
 
   // --- 4. Sorting & Structuring ---
   allCards.sort((a, b) => {
-    if (a.isStarred !== b.isStarred) return b.isStarred ? -1 : 1;
+    if (a.isStarred !== b.isStarred) return a.isStarred ? -1 : 1;
     if (a.isNearest !== b.isNearest) return a.isNearest ? -1 : 1;
     return a.stop.dist - b.stop.dist;
   });
