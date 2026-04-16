@@ -77,43 +77,38 @@ function uiBuildStopSeparator(stopNameTc, stopNameEn, dist) {
   return div;
 }
 
-function uiBuildCard(stop, routeData, isTooFar) {
+function uiBuildCard(stop, routeData, isStarred, isNearest, hasLiveETA, isTooFar) {
   const op = (routeData.co || stop.op || '').toLowerCase();
-  const isStarred = Stars.has(stop.id, routeData.route);
 
   const div = document.createElement('div');
-  div.className = `eta-card ${op} ${isTooFar ? 'too-far' : ''} ${isStarred ? 'starred' : ''}`;
+  // New: Apply 'card-dimmed' if it's not a star, not nearest, and doesn't have live/cached data
+  const isDimmed = !isStarred && !isNearest && !hasLiveETA;
 
-  // Star button handler
+  div.className = `eta-card ${op} ${isTooFar ? 'too-far' : ''} ${isStarred ? 'starred' : ''} ${isNearest ? 'nearest' : ''} ${isDimmed ? 'card-dimmed' : ''}`;
+
   div.addEventListener('dblclick', () => Stars.toggle(stop.id, routeData.route));
 
   const lang = localStorage.getItem('hkbus_lang') || 'tc';
   const dest = lang === 'en' ? (routeData.dest?.en || '') : (routeData.dest?.tc || '');
 
-  // Badge name formatting
   let badgeName = "Unknown";
-  if (op === 'kmb') badgeName = "KMB";/*九巴*/
-  if (op === 'ctb') badgeName = "CTB";/*城巴*/
-  if (op === 'nlb') badgeName = "NLB";/*嶼巴*/
+  if (op === 'kmb') badgeName = "KMB";
+  if (op === 'ctb') badgeName = "CTB";
+  if (op === 'nlb') badgeName = "NLB";
 
-  // Build ETA Chips
+  // Build ETA Chips (Refined for Static State)
   let chipsHtml = '';
 
-  if (routeData.times && routeData.times.length > 0) {
-      // 1. If we have live minutes, show the color-coded chips
+  if (hasLiveETA && routeData.times && routeData.times.length > 0) {
       chipsHtml = routeData.times.map(mins => {
-          const cls = etaClass(mins); // 'hot', 'warm', or 'cool'
+          const cls = etaClass(mins);
           return `<span class="eta-chip ${cls}">${mins}${t('minutes')}</span>`;
       }).join(' · ');
-
-  } else if (routeData.rmk && routeData.rmk.trim() !== '') {
-      // 2. If no minutes, but we have a cleaned remark (like "Scheduled"), show it
-      // We use 'na' class for styling but allow the text to show
-      chipsHtml = `<span class="eta-chip na" style="font-size:0.7rem; white-space:nowrap;">${uiEsc(routeData.rmk)}</span>`;
-
+  } else if (hasLiveETA && routeData.rmk && routeData.rmk.trim() !== '') {
+      chipsHtml = `<span class="eta-chip na" style="font-size:0.7rem;">${uiEsc(routeData.rmk)}</span>`;
   } else {
-      // 3. Fallback if absolutely no data is available
-      chipsHtml = `<span class="eta-chip na">${t('noETA')}</span>`;
+      // 3. Static State: Show a placeholder if it's not set to refresh
+      chipsHtml = `<span class="eta-chip na" style="opacity:0.5;">--</span>`;
   }
 
   div.innerHTML = `
@@ -128,7 +123,7 @@ function uiBuildCard(stop, routeData, isTooFar) {
       <div class="destination">${uiEsc(dest)}</div>
     </div>
     <div class="eta-times">
-      <span class="eta-label">${t('eta')}</span>
+      <span class="eta-label" style="${isDimmed ? 'opacity:0.3' : ''}">${t('eta')}</span>
       ${chipsHtml}
     </div>
   `;
@@ -141,12 +136,20 @@ function uiRenderCards(structuredData) {
   container.innerHTML = '';
 
   structuredData.forEach(group => {
-    // Add separator
+    // 1. Add separator (Station Name)
     container.appendChild(uiBuildStopSeparator(group.stop.tc, group.stop.en, group.stop.dist));
 
-    // Add cards
+    // 2. Add cards with proximity and live data flags
     group.routes.forEach(r => {
-      container.appendChild(uiBuildCard(group.stop, r, group.isTooFar));
+      // These flags come from the logic we refined in app.js
+      container.appendChild(uiBuildCard(
+        group.stop,
+        r.routeData,
+        r.isStarred,
+        r.isNearest,
+        r.hasLiveETA,
+        group.isTooFar
+      ));
     });
   });
 }

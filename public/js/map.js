@@ -162,7 +162,11 @@ function updateSearchCircle() {
 }
 
 function mapRefreshStops(stops) {
-  if (!map) return;
+  if (!map || stops.length === 0) return;
+
+  // Find the absolute minimum distance to identify the nearest cluster
+  const minDistance = Math.min(...stops.map(s => s.distance));
+  const CLUSTER_THRESHOLD = 5; // Meters
 
   // Clear existing markers
   markers.forEach(m => map.removeLayer(m));
@@ -177,7 +181,9 @@ function mapRefreshStops(stops) {
   };
 
   stops.forEach(stop => {
+    // Identify if the stop is starred or part of the nearest cluster
     const isStarredForStop = Array.from(Stars._set).some(k => k.startsWith(stop.id + ':'));
+    const isNearest = (stop.distance <= minDistance + CLUSTER_THRESHOLD);
     const op = (stop.op || '').toLowerCase();
     const color = colors[theme][op] || '#888';
 
@@ -194,6 +200,20 @@ function mapRefreshStops(stops) {
     marker.bindTooltip(name, { direction: 'top' });
 
     marker.addTo(map);
+
+    // Apply the 'marker-active' class for the breathing effect
+    // This targets markers that will have their ETA refreshed
+    if (isStarredForStop || isNearest) {
+      const el = marker.getElement();
+      if (el) el.classList.add('marker-active');
+    }
+
+    // Add click listener to set this stop as the '0m' target
+    marker.on('click', () => {
+      map._isProgrammaticMove = true; // Use safety lock from original map.js
+      map.flyTo([stop.lat, stop.lng], 17);
+    });
+
     markers.push(marker);
   });
 }

@@ -154,6 +154,17 @@
       filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
     }
 
+    @keyframes marker-breathe {
+      0% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+
+    .marker-active {
+      animation: marker-breathe 2.5s ease-in-out infinite;
+      transform-origin: center;
+    }
+
     /* ETA List */
     #eta-list {
       padding: 12px;
@@ -183,6 +194,23 @@
       flex-direction: column;
       gap: 8px;
     }
+
+    /* Visual indication that ETA is not actively refreshing */
+    .eta-card.card-dimmed {
+        opacity: 0.6;
+        filter: grayscale(0.3);
+        border-left: 4px solid #888 !important; /* Neutral border */
+    }
+
+    .eta-card.card-dimmed .route-num {
+        color: #888;
+    }
+
+    /* Optional: Highlight for the nearest cluster */
+    .eta-card.nearest {
+        border-left-width: 8px; /* Slightly thicker to show activity */
+    }
+    
     .eta-card.too-far:not(.starred) {
       opacity: 0.55;
     }

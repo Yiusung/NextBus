@@ -7,6 +7,21 @@ window.appState = {
   isMapMoving: false
 };
 
+// ETA info keep for 2 mins for non-starred routes
+window.etaCache = {
+  _data: {},
+  set(id, route, data) {
+    this._data[`${id}:${route}`] = { data, ts: Date.now() };
+  },
+  get(id, route) {
+    const entry = this._data[`${id}:${route}`];
+    if (!entry) return null;
+    // Keep for 2 minutes (120,000ms)
+    if (Date.now() - entry.ts > 120000) return null;
+    return entry.data;
+  }
+};
+
 // Global callback for UI/Map interactions
 window.AppSetCenter = async function(lat, lng, isFromMapMove = false) {
   if (window.appState.isMapMoving) return;
@@ -29,9 +44,7 @@ window.AppRefresh = async function() {
 
 async function executeSearch(isSoftRefresh = false) {
   //If map is moving, skip this update cycle
-  if (appState.isMapMoving) return;
-
-  if (!appState.centerLat || !appState.centerLng) return;
+  if (appState.isMapMoving|| !appState.centerLat || !appState.centerLng) return;
 
   if (!isSoftRefresh) {
     uiShowMessage('querying');
@@ -55,16 +68,20 @@ async function executeSearch(isSoftRefresh = false) {
 
   // 1. Identify which stops we need ETA for.
   const targetStops = [];
+  const CLUSTER_THRESHOLD = 5; // 5 meters
+  const minDistance = Math.min(...appState.nearbyStops.map(s => s.dist));
 
-  // Add 5 nearest stops (we push the whole object so eta.js knows the operator)
-  appState.nearbyStops.slice(0, 5).forEach(s => {
-    targetStops.push({ id: s.id, op: s.op });
+  // Add nearest stops (we push the whole object so eta.js knows the operator)
+  appState.nearbyStops.forEach(s => {
+      if (s.dist <= minDistance + CLUSTER_THRESHOLD) {
+          targetStops.push({ id: s.id, op: s.op });
+      }
   });
 
   // Add ALL starred stops to targets (even if out of range)
   // We must fetch them from IndexedDB to get their operator code.
   for (const key of Array.from(Stars._set)) {
-    const stopId = key.split(':')[0];
+    const stopId = key.split(':');
 
     // Only query DB if it's not already in our target list
     if (!targetStops.some(s => s.id === stopId)) {
@@ -77,59 +94,52 @@ async function executeSearch(isSoftRefresh = false) {
 
   // 2. Fetch ETA Data
   // Now passing objects instead of just string IDs
-  const etaDataMap = await etaFetchBatch(targetStops);
+  const freshEtaData = await etaFetchBatch(targetStops);
+
+  // Save fresh results to cache
+  Object.keys(freshEtaData).forEach(stopId => {
+    const stopOp = targetStops.find(t => t.id === stopId)?.op;
+    const grouped = etaGroupByRoute(freshEtaData[stopId], stopOp);
+    grouped.forEach(r => window.etaCache.set(stopId, r.route, r));
+  });
 
   // 3. Process and construct final presentation data
   let allCards = [];
 
   // Process nearby stops
   appState.nearbyStops.forEach(stop => {
-    const rawEta = etaDataMap[stop.id] || [];
-    const groupedRoutes = etaGroupByRoute(rawEta, stop.op);
+    const groupedFromRaw = etaGroupByRoute(freshEtaData[stop.id] || [], stop.op);
 
-    groupedRoutes.forEach(r => {
+    // Get all unique routes for this stop
+    // (This list depends on your database providing a list of routes per stop)
+    const routesAtStop = stop.routes || [];
+
+    routesAtStop.forEach(routeName => {
+      const isStarred = Stars.has(stop.id, routeName);
+      const isNearest = stop.dist <= minDistance + CLUSTER_THRESHOLD;
+
+      // Get data: Fresh OR Cache
+      const routeData = window.etaCache.get(stop.id, routeName);
+
       allCards.push({
         stop: stop,
-        routeData: r,
-        isStarred: Stars.has(stop.id, r.route),
-        isTooFar: false // Within radius
+        routeData: routeData || { route: routeName, etas: [] }, // Static if no data
+        isStarred: isStarred,
+        isNearest: isNearest,
+        hasLiveETA: !!routeData, // Use this for dimming in UI
+        isTooFar: false
       });
     });
   });
 
-  // Process starred routes that are OUTSIDE the nearby stops array
-  Array.from(Stars._set).forEach(async key => {
-    const [stopId, route] = key.split(':');
-    const isAlreadyIncluded = allCards.some(c => c.stop.id === stopId && c.routeData.route === route);
-
-    if (!isAlreadyIncluded) {
-      // Fetch full stop info from DB since it wasn't in the BBox
-      const stopRecord = await db.stops.get(stopId);
-      if (stopRecord) {
-        const rawEta = etaDataMap[stopId] || [];
-        const groupedRoutes = etaGroupByRoute(rawEta, stopRecord.op);
-        const specificRoute = groupedRoutes.find(r => r.route === route);
-
-        if (specificRoute) {
-          // Calculate distance from current center
-          stopRecord.dist = geoHaversine(appState.centerLat, appState.centerLng, stopRecord.lat, stopRecord.lng);
-          allCards.push({
-            stop: stopRecord,
-            routeData: specificRoute,
-            isStarred: true,
-            isTooFar: true // Outside radius, but starred
-          });
-        }
-      }
-    }
-  });
-
   // 4. Sort Cards
   allCards.sort((a, b) => {
-    if (a.isStarred !== b.isStarred) return b.isStarred ? 1 : -1; // Starred first
-    if (a.stop.dist !== b.stop.dist) return a.stop.dist - b.stop.dist; // Nearest stop first
-    // Route alphanumeric
-    return a.routeData.route.localeCompare(b.routeData.route, undefined, { numeric: true });
+    // 1. Starred first
+    if (a.isStarred !== b.isStarred) return b.isStarred ? 1 : -1;
+    // 2. Nearest Cluster second
+    if (a.isNearest !== b.isNearest) return b.isNearest ? 1 : -1;
+    // 3. Absolute Distance third
+    return a.stop.dist - b.stop.dist;
   });
 
   // 5. Group by Stop for rendering
@@ -183,7 +193,7 @@ async function initApp() {
                 window.map._isProgrammaticMove = false;
             }
         }, 50);
-        
+
     }, 350); //350ms so 0.3s CSS transition complete
   });
 
@@ -211,7 +221,7 @@ async function initApp() {
     }, CONFIG.POLL_INTERVAL_MS);
 
   } catch (err) {
-    console.warn("Geolocation failed or denied, using default HK center.");
+    console.warn("Geolocation failed or denied, using default HK center(Mong Kok).");
     appState.centerLat = 22.3193;
     appState.centerLng = 114.1694;
     mapInit(appState.centerLat, appState.centerLng);
