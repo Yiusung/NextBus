@@ -60,7 +60,7 @@ async function executeSearch(isSoftRefresh = false) {
       return;
     }
   }
-  
+
   if (appState.nearbyStops.length === 0) {
     uiShowMessage('noStopsNearby');
     return;
@@ -84,26 +84,44 @@ async function executeSearch(isSoftRefresh = false) {
   const freshEtaData = await etaFetchBatch(targetStops);
   // (Ensure your batch fetcher saves results to window.etaCache here)
 
-  // --- 3. Construct Cards (The Fix) ---
+  // --- 3. Construct Cards (Revised Fix) ---
   let allCards = [];
 
   appState.nearbyStops.forEach(stop => {
-    // Crucial: We need the list of routes for this stop from your DB record
-    const stopRoutes = stop.routes || [];
+    // Instead of stop.routes, collect routes from two places:
+    // 1. Routes that just came back from the batch fetch
+    const freshRoutes = etaGroupByRoute(freshEtaData[stop.id] || [], stop.op);
 
-    stopRoutes.forEach(routeName => {
+    // 2. Starred routes for THIS specific stop
+    const starredKeys = Array.from(Stars._set).filter(k => k.startsWith(stop.id + ':'));
+
+    // Combine them into a unique list of route names
+    const routeNames = new Set([
+      ...freshRoutes.map(r => r.route),
+      ...starredKeys.map(k => k.split(':')[1])
+    ]);
+
+    routeNames.forEach(routeName => {
       const isStarred = Stars.has(stop.id, routeName);
       const isNearest = stop.dist <= minDist + CLUSTER_THRESHOLD;
 
-      // Look for data in the fresh batch or the global cache
-      const routeData = window.etaCache.get(stop.id, routeName);
+      // Look for data in the fresh batch results
+      const freshData = freshRoutes.find(r => r.route === routeName);
+
+      // Save to cache if we found fresh data
+      if (freshData) {
+          window.etaCache.set(stop.id, routeName, freshData);
+      }
+
+      // Try to get data (either the fresh data we just found or from cache)
+      const routeData = freshData || window.etaCache.get(stop.id, routeName);
 
       allCards.push({
         stop: stop,
         routeData: routeData || { route: routeName, etas: [], rmk: "" },
         isStarred: isStarred,
         isNearest: isNearest,
-        hasLiveETA: !!routeData, // If false, ui.js will dim the card
+        hasLiveETA: !!routeData,
         isTooFar: false
       });
     });
