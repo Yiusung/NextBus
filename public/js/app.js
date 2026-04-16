@@ -83,6 +83,14 @@ async function executeSearch(isSoftRefresh = false) {
   // --- 2. Fetch and Map to Cache ---
   const freshEtaData = await etaFetchBatch(targetStops);
   // (Ensure your batch fetcher saves results to window.etaCache here)
+  Object.keys(freshEtaData).forEach(stopId => {
+    // Find the operator for this stop from our target list
+    const stopOp = targetStops.find(t => t.id === stopId)?.op;
+    // Group raw API records into the format ui.js expects
+    const grouped = etaGroupByRoute(freshEtaData[stopId], stopOp);
+    // Save each route's data to the 2-minute cache
+    grouped.forEach(r => window.etaCache.set(stopId, r.route, r));
+  });
 
   // --- 3. Construct Cards (Revised Fix) ---
   let allCards = [];

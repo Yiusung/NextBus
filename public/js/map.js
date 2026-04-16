@@ -187,13 +187,19 @@ function mapRefreshStops(stops) {
     const op = (stop.op || '').toLowerCase();
     const color = colors[theme][op] || '#888';
 
+    // map.js inside stops.forEach
     const marker = L.circleMarker([stop.lat, stop.lng], {
       radius: isStarredForStop ? 6 : 4,
       fillColor: color,
-      fillOpacity: isStarredForStop ? 0.9 : 0.7,
-      color: isStarredForStop ? '#fff' : color,
-      weight: isStarredForStop ? 2 : 1
+      fillOpacity: 0.8,
+      color: color, // Ensure stroke color matches fill for the pulse
+      weight: 2     // Starting weight
     });
+
+    if (isStarredForStop || isNearest) {
+      const el = marker.getElement();
+      if (el) el.classList.add('marker-active');
+    }
 
     const lang = localStorage.getItem('hkbus_lang') || 'tc';
     const name = lang === 'en' ? stop.en : stop.tc;
@@ -214,7 +220,15 @@ function mapRefreshStops(stops) {
     // Add click listener to set this stop as the '0m' target
     marker.on('click', () => {
       map._isProgrammaticMove = true; // Use safety lock from original map.js
-      map.flyTo([stop.lat, stop.lng], 17);
+      map.flyTo([stop.lat, stop.lng], 17, { duration: 0.5 });
+
+        map.once('moveend', () => {
+          map._isProgrammaticMove = false;
+          // CRITICAL: Manually update the app state and trigger search
+          if (typeof window.AppSetCenter === 'function') {
+            window.AppSetCenter(stop.lat, stop.lng, true);
+          }
+        });
     });
 
     markers.push(marker);

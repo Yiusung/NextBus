@@ -154,28 +154,17 @@
       filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
     }
 
-    @keyframes marker-breathe {
-      0% {
-        stroke-opacity: 0.2;
-        stroke-width: 2px;
-      }
-      50% {
-        stroke-opacity: 0.8;
-        stroke-width: 12px; /* Pulses the 'ring' instead of scaling the whole dot */
-      }
-      100% {
-        stroke-opacity: 0.2;
-        stroke-width: 2px;
-      }
+    /* style.css */
+    @keyframes marker-pulse {
+      0% { stroke-width: 2px; stroke-opacity: 0.4; }
+      50% { stroke-width: 15px; stroke-opacity: 0.8; }
+      100% { stroke-width: 2px; stroke-opacity: 0.4; }
     }
 
     .marker-active {
-      /* Use transform-box to ensure scaling stays centered if you still want to scale */
-      transform-box: fill-box;
-      transform-origin: center;
-
-      /* Applying the pulse to the stroke is safer for Leaflet markers */
-      animation: marker-breathe 2.5s ease-in-out infinite;
+      animation: marker-pulse 2s ease-in-out infinite !important;
+      /* Ensures the stroke expands outward from the center */
+      vector-effect: non-scaling-stroke;
     }
 
     /* ETA List */
