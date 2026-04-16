@@ -107,8 +107,8 @@ function uiBuildCard(stop, routeData, isStarred, isNearest, hasLiveETA, isTooFar
   } else if (hasLiveETA && routeData.rmk && routeData.rmk.trim() !== '') {
       chipsHtml = `<span class="eta-chip na" style="font-size:0.7rem;">${uiEsc(routeData.rmk)}</span>`;
   } else {
-      // 3. Static State: Show a placeholder if it's not set to refresh
-      chipsHtml = `<span class="eta-chip na" style="opacity:0.5;">--</span>`;
+      // show noETA when not refreshed
+      chipsHtml = `<span class="eta-chip na" style="opacity:0.5;">${t('noETA')}</span>`;
   }
 
   div.innerHTML = `

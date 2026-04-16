@@ -224,6 +224,8 @@ function mapRefreshStops(stops) {
 
         map.once('moveend', () => {
           map._isProgrammaticMove = false;
+          window.appState.centerLat = stop.lat;
+          window.appState.centerLng = stop.lng;
           // CRITICAL: Manually update the app state and trigger search
           if (typeof window.AppSetCenter === 'function') {
             window.AppSetCenter(stop.lat, stop.lng, true);

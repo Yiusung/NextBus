@@ -108,15 +108,24 @@ async function executeSearch(isSoftRefresh = false) {
           ...cachedKeys.map(k => k.split(':')[1]) // Ensures the CTB route persists
       ]);
 
+      // SPECIAL CASE: If this is the nearest cluster but STILL no routes found,
+      // show the stop's identity at least.
+      if (routeNames.size === 0 && stop.dist <= minDist + CLUSTER_THRESHOLD) {
+          routeNames.add("N/A");
+      }
+
       routeNames.forEach(routeName => {
-          const routeData = freshRoutes.find(r => r.route === routeName) || window.etaCache.get(stop.id, routeName);
+          const isStarred = Stars.has(stop.id, routeName);
+          const isNearest = stop.dist <= minDist + CLUSTER_THRESHOLD;
+          const liveData = freshRoutes.find(r => r.route === routeName);
+          const routeData = liveData || window.etaCache.get(stop.id, routeName);
 
           allCards.push({
               stop: stop,
-              routeData: routeData || { route: routeName, etas: [], rmk: "Out of Service" }, // Fallback text
-              isStarred: Stars.has(stop.id, routeName),
-              isNearest: stop.dist <= minDist + 5,
-              hasLiveETA: !!(freshRoutes.find(r => r.route === routeName)),
+              routeData: routeData || { route: routeName, etas: [], rmk: t('noETA') },
+              isStarred: isStarred,
+              isNearest: isNearest,
+              hasLiveETA: !!liveData,
               isTooFar: false
           });
       });
