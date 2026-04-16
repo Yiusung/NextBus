@@ -208,6 +208,7 @@ function mapRefreshStops(stops) {
       if (el) {
           el.classList.add('marker-active');
           marker.setStyle({ weight: isStarredForStop ? 3 : 2 });
+      }
     }
 
     // Add click listener to set this stop as the '0m' target
