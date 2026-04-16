@@ -42,7 +42,9 @@ window.AppRefresh = async function() {
   await executeSearch(true); // true = soft refresh (re-render with cached state + live stars)
 };
 
+// app.js - Refined Processing Logic
 async function executeSearch(isSoftRefresh = false) {
+  // ... (Initial DB query and mapRefreshStops logic) ...
   //If map is moving, skip this update cycle
   if (appState.isMapMoving|| !appState.centerLat || !appState.centerLng) return;
 
@@ -58,91 +60,63 @@ async function executeSearch(isSoftRefresh = false) {
       return;
     }
   }
-
+  
   if (appState.nearbyStops.length === 0) {
     uiShowMessage('noStopsNearby');
     return;
   }
-
   uiHideMessage();
 
-  // 1. Identify which stops we need ETA for.
+  // --- 1. Identify Target Cluster ---
+  const CLUSTER_THRESHOLD = 5;
+  const minDist = Math.min(...appState.nearbyStops.map(s => s.dist));
   const targetStops = [];
-  const CLUSTER_THRESHOLD = 5; // 5 meters
-  const minDistance = Math.min(...appState.nearbyStops.map(s => s.dist));
 
-  // Add nearest stops (we push the whole object so eta.js knows the operator)
   appState.nearbyStops.forEach(s => {
-      if (s.dist <= minDistance + CLUSTER_THRESHOLD) {
-          targetStops.push({ id: s.id, op: s.op });
-      }
-  });
-
-  // Add ALL starred stops to targets (even if out of range)
-  // We must fetch them from IndexedDB to get their operator code.
-  for (const key of Array.from(Stars._set)) {
-    const stopId = key.split(':');
-
-    // Only query DB if it's not already in our target list
-    if (!targetStops.some(s => s.id === stopId)) {
-      const stopRecord = await db.stops.get(stopId);
-      if (stopRecord) {
-        targetStops.push({ id: stopRecord.id, op: stopRecord.op });
-      }
+    const isNearest = s.dist <= minDist + CLUSTER_THRESHOLD;
+    const isStarred = Stars.hasStop(s.id); // Helper to check if any route is starred
+    if (isNearest || isStarred) {
+      targetStops.push({ id: s.id, op: s.op });
     }
-  }
-
-  // 2. Fetch ETA Data
-  // Now passing objects instead of just string IDs
-  const freshEtaData = await etaFetchBatch(targetStops);
-
-  // Save fresh results to cache
-  Object.keys(freshEtaData).forEach(stopId => {
-    const stopOp = targetStops.find(t => t.id === stopId)?.op;
-    const grouped = etaGroupByRoute(freshEtaData[stopId], stopOp);
-    grouped.forEach(r => window.etaCache.set(stopId, r.route, r));
   });
 
-  // 3. Process and construct final presentation data
+  // --- 2. Fetch and Map to Cache ---
+  const freshEtaData = await etaFetchBatch(targetStops);
+  // (Ensure your batch fetcher saves results to window.etaCache here)
+
+  // --- 3. Construct Cards (The Fix) ---
   let allCards = [];
 
-  // Process nearby stops
   appState.nearbyStops.forEach(stop => {
-    const groupedFromRaw = etaGroupByRoute(freshEtaData[stop.id] || [], stop.op);
+    // Crucial: We need the list of routes for this stop from your DB record
+    const stopRoutes = stop.routes || [];
 
-    // Get all unique routes for this stop
-    // (This list depends on your database providing a list of routes per stop)
-    const routesAtStop = stop.routes || [];
-
-    routesAtStop.forEach(routeName => {
+    stopRoutes.forEach(routeName => {
       const isStarred = Stars.has(stop.id, routeName);
-      const isNearest = stop.dist <= minDistance + CLUSTER_THRESHOLD;
+      const isNearest = stop.dist <= minDist + CLUSTER_THRESHOLD;
 
-      // Get data: Fresh OR Cache
+      // Look for data in the fresh batch or the global cache
       const routeData = window.etaCache.get(stop.id, routeName);
 
       allCards.push({
         stop: stop,
-        routeData: routeData || { route: routeName, etas: [] }, // Static if no data
+        routeData: routeData || { route: routeName, etas: [], rmk: "" },
         isStarred: isStarred,
         isNearest: isNearest,
-        hasLiveETA: !!routeData, // Use this for dimming in UI
+        hasLiveETA: !!routeData, // If false, ui.js will dim the card
         isTooFar: false
       });
     });
   });
 
-  // 4. Sort Cards
+  // --- 4. Sorting & Structuring ---
   allCards.sort((a, b) => {
-    // 1. Starred first
-    if (a.isStarred !== b.isStarred) return b.isStarred ? 1 : -1;
-    // 2. Nearest Cluster second
-    if (a.isNearest !== b.isNearest) return b.isNearest ? 1 : -1;
-    // 3. Absolute Distance third
+    if (a.isStarred !== b.isStarred) return b.isStarred ? -1 : 1;
+    if (a.isNearest !== b.isNearest) return a.isNearest ? -1 : 1;
     return a.stop.dist - b.stop.dist;
   });
 
-  // 5. Group by Stop for rendering
+  // Rebuild the structured group for uiRenderCards
   const structured = [];
   let currentGroup = null;
 
@@ -151,11 +125,17 @@ async function executeSearch(isSoftRefresh = false) {
       currentGroup = {
         stop: card.stop,
         isTooFar: card.isTooFar,
-        routes: []
+        routes: [] // This will store the route objects for uiRenderCards
       };
       structured.push(currentGroup);
     }
-    currentGroup.routes.push(card.routeData);
+    // Push the enriched route object
+    currentGroup.routes.push({
+      routeData: card.routeData,
+      isStarred: card.isStarred,
+      isNearest: card.isNearest,
+      hasLiveETA: card.hasLiveETA
+    });
   });
 
   uiRenderCards(structured);
