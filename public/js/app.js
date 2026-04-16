@@ -74,7 +74,7 @@ async function executeSearch(isSoftRefresh = false) {
 
   appState.nearbyStops.forEach(s => {
     const isNearest = s.dist <= minDist + CLUSTER_THRESHOLD;
-    const isStarred = Stars.hasStop(s.id); // Helper to check if any route is starred
+    const isStarred = Array.from(Stars._set).some(k => k.startsWith(s.id + ':'));
     if (isNearest || isStarred) {
       targetStops.push({ id: s.id, op: s.op });
     }
