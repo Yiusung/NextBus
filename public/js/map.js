@@ -165,7 +165,7 @@ function mapRefreshStops(stops) {
   if (!map || stops.length === 0) return;
 
   // Find the absolute minimum distance to identify the nearest cluster
-  const minDistance = Math.min(...stops.map(s => s.distance));
+  const minDistance = Math.min(...stops.map(s => s.dist));
   const CLUSTER_THRESHOLD = 5; // Meters
 
   // Clear existing markers
@@ -181,59 +181,53 @@ function mapRefreshStops(stops) {
   };
 
   stops.forEach(stop => {
-    // Identify if the stop is starred or part of the nearest cluster
-    const isStarredForStop = Array.from(Stars._set).some(k => k.startsWith(stop.id + ':'));
-    const isNearest = (stop.distance <= minDistance + CLUSTER_THRESHOLD);
-    const op = (stop.op || '').toLowerCase();
-    const color = colors[theme][op] || '#888';
+      // Check whether starred or of the nearest cluster
+      const isStarredForStop = Array.from(Stars._set).some(k => k.startsWith(stop.id + ':'));
+      const isNearest = (stop.dist <= minDistance + CLUSTER_THRESHOLD);
 
-    // map.js inside stops.forEach
-    const marker = L.circleMarker([stop.lat, stop.lng], {
-      radius: isStarredForStop ? 6 : 4,
-      fillColor: color,
-      fillOpacity: 0.8,
-      color: color, // Ensure stroke color matches fill for the pulse
-      weight: 2     // Starting weight
-    });
+      const op = (stop.op || '').toLowerCase();
+      const color = colors[theme][op] || '#888';
 
-    if (isStarredForStop || isNearest) {
-      const el = marker.getElement();
-      if (el) el.classList.add('marker-active');
-    }
+      const marker = L.circleMarker([stop.lat, stop.lng], {
+          radius: isStarredForStop ? 6 : 4,
+          fillColor: color,
+          fillOpacity: 0.8,
+          color: color,
+          weight: isStarredForStop ? 3 : 2
+      });
 
-    const lang = localStorage.getItem('hkbus_lang') || 'tc';
-    const name = lang === 'en' ? stop.en : stop.tc;
-    marker.bindTooltip(name, { direction: 'top' });
+      // Handle Tooltip
+      const lang = localStorage.getItem('hkbus_lang') || 'tc';
+      marker.bindTooltip(lang === 'en' ? stop.en : stop.tc, { direction: 'top' });
 
-    marker.addTo(map);
-
-    // Apply the 'marker-active' class for the breathing effect
-    // This targets markers that will have their ETA refreshed
-    if (isStarredForStop || isNearest) {
-      const el = marker.getElement();
-      if (el) {
-          el.classList.add('marker-active');
-          marker.setStyle({ weight: isStarredForStop ? 3 : 2 });
-      }
-    }
-
-    // Add click listener to set this stop as the '0m' target
-    marker.on('click', () => {
-      map._isProgrammaticMove = true; // Use safety lock from original map.js
-      map.flyTo([stop.lat, stop.lng], 17, { duration: 0.5 });
-
-        map.once('moveend', () => {
-          map._isProgrammaticMove = false;
-          window.appState.centerLat = stop.lat;
-          window.appState.centerLng = stop.lng;
-          // CRITICAL: Manually update the app state and trigger search
-          if (typeof window.AppSetCenter === 'function') {
-            window.AppSetCenter(stop.lat, stop.lng, true);
+      // Handle Animation
+      if (isStarredForStop || isNearest) {
+          const el = marker.getElement();
+          // If el is null, Leaflet hasn't added it to DOM yet.
+          // We use the 'add' event as a backup.
+          if (el) {
+              el.classList.add('marker-active');
+          } else {
+              marker.on('add', () => marker.getElement().classList.add('marker-active'));
           }
-        });
-    });
+      }
 
-    markers.push(marker);
+      // Click Listener (Keep your existing programmatic move logic)
+      marker.on('click', () => {
+          map._isProgrammaticMove = true;
+          map.flyTo([stop.lat, stop.lng], 17, { duration: 0.5 });
+          map.once('moveend', () => {
+              map._isProgrammaticMove = false;
+              window.appState.centerLat = stop.lat;
+              window.appState.centerLng = stop.lng;
+              if (typeof window.AppSetCenter === 'function') {
+                  window.AppSetCenter(stop.lat, stop.lng, true);
+              }
+          });
+      });
+
+      marker.addTo(map);
+      markers.push(marker);
   });
 }
 
