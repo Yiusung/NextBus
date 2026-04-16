@@ -74,7 +74,7 @@ async function executeSearch(isSoftRefresh = false) {
 
   appState.nearbyStops.forEach(s => {
     const isNearest = s.dist <= minDist + CLUSTER_THRESHOLD;
-    const isStarred = Array.from(Stars._set).some(k => k.startsWith(s.id + ':'));
+    const isStarred = Array.from(Stars._set).includes(`${stop.id}:${routeName}`);
     if (isNearest || isStarred) {
       targetStops.push({ id: s.id, op: s.op });
     }
@@ -115,7 +115,7 @@ async function executeSearch(isSoftRefresh = false) {
       }
 
       routeNames.forEach(routeName => {
-          const isStarred = Stars.has(stop.id, routeName);
+          const isStarred = Array.from(Stars._set).includes(`${stop.id}:${routeName}`);
           const isNearest = stop.dist <= minDist + CLUSTER_THRESHOLD;
           const liveData = freshRoutes.find(r => r.route === routeName);
           const routeData = liveData || window.etaCache.get(stop.id, routeName);
