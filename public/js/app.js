@@ -88,43 +88,30 @@ async function executeSearch(isSoftRefresh = false) {
   let allCards = [];
 
   appState.nearbyStops.forEach(stop => {
-    // Instead of stop.routes, collect routes from two places:
-    // 1. Routes that just came back from the batch fetch
-    const freshRoutes = etaGroupByRoute(freshEtaData[stop.id] || [], stop.op);
+      const freshRoutes = etaGroupByRoute(freshEtaData[stop.id] || [], stop.op);
+      const starredKeys = Array.from(Stars._set).filter(k => k.startsWith(stop.id + ':'));
 
-    // 2. Starred routes for THIS specific stop
-    const starredKeys = Array.from(Stars._set).filter(k => k.startsWith(stop.id + ':'));
+      // NEW: Also include known routes from the cache even if the current API call was empty
+      const cachedKeys = Object.keys(window.etaCache._data).filter(k => k.startsWith(stop.id + ':'));
 
-    // Combine them into a unique list of route names
-    const routeNames = new Set([
-      ...freshRoutes.map(r => r.route),
-      ...starredKeys.map(k => k.split(':')[1])
-    ]);
+      const routeNames = new Set([
+          ...freshRoutes.map(r => r.route),
+          ...starredKeys.map(k => k.split(':')[1]),
+          ...cachedKeys.map(k => k.split(':')[1]) // Ensures the CTB route persists
+      ]);
 
-    routeNames.forEach(routeName => {
-      const isStarred = Stars.has(stop.id, routeName);
-      const isNearest = stop.dist <= minDist + CLUSTER_THRESHOLD;
+      routeNames.forEach(routeName => {
+          const routeData = freshRoutes.find(r => r.route === routeName) || window.etaCache.get(stop.id, routeName);
 
-      // Look for data in the fresh batch results
-      const freshData = freshRoutes.find(r => r.route === routeName);
-
-      // Save to cache if we found fresh data
-      if (freshData) {
-          window.etaCache.set(stop.id, routeName, freshData);
-      }
-
-      // Try to get data (either the fresh data we just found or from cache)
-      const routeData = freshData || window.etaCache.get(stop.id, routeName);
-
-      allCards.push({
-        stop: stop,
-        routeData: routeData || { route: routeName, etas: [], rmk: "" },
-        isStarred: isStarred,
-        isNearest: isNearest,
-        hasLiveETA: !!routeData,
-        isTooFar: false
+          allCards.push({
+              stop: stop,
+              routeData: routeData || { route: routeName, etas: [], rmk: "Out of Service" }, // Fallback text
+              isStarred: Stars.has(stop.id, routeName),
+              isNearest: stop.dist <= minDist + 5,
+              hasLiveETA: !!(freshRoutes.find(r => r.route === routeName)),
+              isTooFar: false
+          });
       });
-    });
   });
 
   // --- 4. Sorting & Structuring ---

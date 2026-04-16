@@ -205,7 +205,9 @@ function mapRefreshStops(stops) {
     // This targets markers that will have their ETA refreshed
     if (isStarredForStop || isNearest) {
       const el = marker.getElement();
-      if (el) el.classList.add('marker-active');
+      if (el) {
+          el.classList.add('marker-active');
+          marker.setStyle({ weight: isStarredForStop ? 3 : 2 });
     }
 
     // Add click listener to set this stop as the '0m' target
