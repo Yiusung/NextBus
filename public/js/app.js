@@ -7,6 +7,21 @@ window.appState = {
   isMapMoving: false
 };
 
+// ETA info keep for 2 mins for non-starred routes
+window.etaCache = {
+  _data: {},
+  set(id, route, data) {
+    this._data[`${id}:${route}`] = { data, ts: Date.now() };
+  },
+  get(id, route) {
+    const entry = this._data[`${id}:${route}`];
+    if (!entry) return null;
+    // Keep for 2 minutes (120,000ms)
+    if (Date.now() - entry.ts > 120000) return null;
+    return entry.data;
+  }
+};
+
 // Global callback for UI/Map interactions
 window.AppSetCenter = async function(lat, lng, isFromMapMove = false) {
   if (window.appState.isMapMoving) return;
@@ -27,11 +42,11 @@ window.AppRefresh = async function() {
   await executeSearch(true); // true = soft refresh (re-render with cached state + live stars)
 };
 
+// app.js - Refined Processing Logic
 async function executeSearch(isSoftRefresh = false) {
+  // ... (Initial DB query and mapRefreshStops logic) ...
   //If map is moving, skip this update cycle
-  if (appState.isMapMoving) return;
-
-  if (!appState.centerLat || !appState.centerLng) return;
+  if (appState.isMapMoving|| !appState.centerLat || !appState.centerLng) return;
 
   if (!isSoftRefresh) {
     uiShowMessage('querying');
@@ -45,94 +60,63 @@ async function executeSearch(isSoftRefresh = false) {
       return;
     }
   }
-
+  
   if (appState.nearbyStops.length === 0) {
     uiShowMessage('noStopsNearby');
     return;
   }
-
   uiHideMessage();
 
-  // 1. Identify which stops we need ETA for.
+  // --- 1. Identify Target Cluster ---
+  const CLUSTER_THRESHOLD = 5;
+  const minDist = Math.min(...appState.nearbyStops.map(s => s.dist));
   const targetStops = [];
 
-  // Add 5 nearest stops (we push the whole object so eta.js knows the operator)
-  appState.nearbyStops.slice(0, 5).forEach(s => {
-    targetStops.push({ id: s.id, op: s.op });
+  appState.nearbyStops.forEach(s => {
+    const isNearest = s.dist <= minDist + CLUSTER_THRESHOLD;
+    const isStarred = Stars.hasStop(s.id); // Helper to check if any route is starred
+    if (isNearest || isStarred) {
+      targetStops.push({ id: s.id, op: s.op });
+    }
   });
 
-  // Add ALL starred stops to targets (even if out of range)
-  // We must fetch them from IndexedDB to get their operator code.
-  for (const key of Array.from(Stars._set)) {
-    const stopId = key.split(':')[0];
+  // --- 2. Fetch and Map to Cache ---
+  const freshEtaData = await etaFetchBatch(targetStops);
+  // (Ensure your batch fetcher saves results to window.etaCache here)
 
-    // Only query DB if it's not already in our target list
-    if (!targetStops.some(s => s.id === stopId)) {
-      const stopRecord = await db.stops.get(stopId);
-      if (stopRecord) {
-        targetStops.push({ id: stopRecord.id, op: stopRecord.op });
-      }
-    }
-  }
-
-  // 2. Fetch ETA Data
-  // Now passing objects instead of just string IDs
-  const etaDataMap = await etaFetchBatch(targetStops);
-
-  // 3. Process and construct final presentation data
+  // --- 3. Construct Cards (The Fix) ---
   let allCards = [];
 
-  // Process nearby stops
   appState.nearbyStops.forEach(stop => {
-    const rawEta = etaDataMap[stop.id] || [];
-    const groupedRoutes = etaGroupByRoute(rawEta, stop.op);
+    // Crucial: We need the list of routes for this stop from your DB record
+    const stopRoutes = stop.routes || [];
 
-    groupedRoutes.forEach(r => {
+    stopRoutes.forEach(routeName => {
+      const isStarred = Stars.has(stop.id, routeName);
+      const isNearest = stop.dist <= minDist + CLUSTER_THRESHOLD;
+
+      // Look for data in the fresh batch or the global cache
+      const routeData = window.etaCache.get(stop.id, routeName);
+
       allCards.push({
         stop: stop,
-        routeData: r,
-        isStarred: Stars.has(stop.id, r.route),
-        isTooFar: false // Within radius
+        routeData: routeData || { route: routeName, etas: [], rmk: "" },
+        isStarred: isStarred,
+        isNearest: isNearest,
+        hasLiveETA: !!routeData, // If false, ui.js will dim the card
+        isTooFar: false
       });
     });
   });
 
-  // Process starred routes that are OUTSIDE the nearby stops array
-  Array.from(Stars._set).forEach(async key => {
-    const [stopId, route] = key.split(':');
-    const isAlreadyIncluded = allCards.some(c => c.stop.id === stopId && c.routeData.route === route);
-
-    if (!isAlreadyIncluded) {
-      // Fetch full stop info from DB since it wasn't in the BBox
-      const stopRecord = await db.stops.get(stopId);
-      if (stopRecord) {
-        const rawEta = etaDataMap[stopId] || [];
-        const groupedRoutes = etaGroupByRoute(rawEta, stopRecord.op);
-        const specificRoute = groupedRoutes.find(r => r.route === route);
-
-        if (specificRoute) {
-          // Calculate distance from current center
-          stopRecord.dist = geoHaversine(appState.centerLat, appState.centerLng, stopRecord.lat, stopRecord.lng);
-          allCards.push({
-            stop: stopRecord,
-            routeData: specificRoute,
-            isStarred: true,
-            isTooFar: true // Outside radius, but starred
-          });
-        }
-      }
-    }
-  });
-
-  // 4. Sort Cards
+  // --- 4. Sorting & Structuring ---
   allCards.sort((a, b) => {
-    if (a.isStarred !== b.isStarred) return b.isStarred ? 1 : -1; // Starred first
-    if (a.stop.dist !== b.stop.dist) return a.stop.dist - b.stop.dist; // Nearest stop first
-    // Route alphanumeric
-    return a.routeData.route.localeCompare(b.routeData.route, undefined, { numeric: true });
+    if (a.isStarred !== b.isStarred) return b.isStarred ? -1 : 1;
+    if (a.isNearest !== b.isNearest) return a.isNearest ? -1 : 1;
+    return a.stop.dist - b.stop.dist;
   });
 
-  // 5. Group by Stop for rendering
+  // Rebuild the structured group for uiRenderCards
   const structured = [];
   let currentGroup = null;
 
@@ -141,11 +125,17 @@ async function executeSearch(isSoftRefresh = false) {
       currentGroup = {
         stop: card.stop,
         isTooFar: card.isTooFar,
-        routes: []
+        routes: [] // This will store the route objects for uiRenderCards
       };
       structured.push(currentGroup);
     }
-    currentGroup.routes.push(card.routeData);
+    // Push the enriched route object
+    currentGroup.routes.push({
+      routeData: card.routeData,
+      isStarred: card.isStarred,
+      isNearest: card.isNearest,
+      hasLiveETA: card.hasLiveETA
+    });
   });
 
   uiRenderCards(structured);
@@ -183,7 +173,7 @@ async function initApp() {
                 window.map._isProgrammaticMove = false;
             }
         }, 50);
-        
+
     }, 350); //350ms so 0.3s CSS transition complete
   });
 
@@ -211,7 +201,7 @@ async function initApp() {
     }, CONFIG.POLL_INTERVAL_MS);
 
   } catch (err) {
-    console.warn("Geolocation failed or denied, using default HK center.");
+    console.warn("Geolocation failed or denied, using default HK center(Mong Kok).");
     appState.centerLat = 22.3193;
     appState.centerLng = 114.1694;
     mapInit(appState.centerLat, appState.centerLng);
